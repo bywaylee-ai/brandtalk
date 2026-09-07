@@ -5,7 +5,7 @@
  * Description: 신뢰도 기반 별점·리뷰 서비스. 리뷰/반응/팔로우/인증 데이터 레이어 + REST API(brandtalk/v1).
  * Requires at least: 6.4
  * Requires PHP: 8.0
- * Version: 0.5.9
+ * Version: 0.6.1
  * Author: todaymeal
  * Text Domain: brandtalk
  * Domain Path: /languages/

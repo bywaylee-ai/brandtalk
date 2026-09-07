@@ -1,9 +1,11 @@
 <?php
 /**
  * Trust engine component. 정책 §4.
- *  - §4.2  좋아요 +1 / 싫어요 -1 / 신고 -(5~10) / 팔로워 +1
- *  - §4.3  신뢰 판정: 좋아요 비율 > 임계값(기본 0.51), 신고는 분모 제외
- *  - §4.4  신뢰도 레벨 5단계
+ *  - §4.2   좋아요 +1 / 싫어요 -1 / 신고 -(5~10) / 팔로워 +1
+ *  - §4.2.7 리뷰어 신용도 가중치(-0.2~+0.2): 반응자가 남긴 좋아요/싫어요는
+ *           ±1 이 아니라 (±1 ± 반응자 신용도) 로 게시자 신뢰도에 반영된다.
+ *  - §4.3   신뢰 판정: 좋아요 비율 > 임계값(기본 0.51), 신고는 분모 제외
+ *  - §4.4   신뢰도 레벨 5단계
  *
  * @package BrandTalk\Components
  */
@@ -24,6 +26,7 @@ final class Trust extends Component {
 
 	const META_SCORE = 'brandtalk_trust_score';
 	const META_LEVEL = 'brandtalk_trust_level';
+	const META_CREDIBILITY = 'brandtalk_trust_credibility';
 
 	/**
 	 * Records an audit-log delta.
@@ -38,27 +41,103 @@ final class Trust extends Component {
 	}
 
 	/**
-	 * Recomputes a user's trust score from the ledger and caches it.
+	 * §4.2.7 순 좋아요(좋아요 − 싫어요)를 구간으로 나눠 리뷰어 신용도 가중치로 매긴다.
+	 * 구간: net ≥ hi → +0.2 / net ≥ lo → +0.1 / |net| < lo → 0 / net ≤ -lo → -0.1 / net ≤ -hi → -0.2.
+	 *
+	 * @param int $net 순 좋아요.
+	 * @return float -0.2 ~ +0.2
+	 */
+	public function credibility_for_net( $net ) {
+		$net = (int) $net;
+		$lo  = Options::credibility_net_lo();
+		$hi  = Options::credibility_net_hi();
+
+		if ( $net >= $hi ) {
+			return 0.2;
+		}
+
+		if ( $net >= $lo ) {
+			return 0.1;
+		}
+
+		if ( $net <= -$hi ) {
+			return -0.2;
+		}
+
+		if ( $net <= -$lo ) {
+			return -0.1;
+		}
+
+		return 0.0;
+	}
+
+	/**
+	 * §4.2.7 리뷰어 신용도 가중치를 재계산해 캐시한다(자기 리뷰가 받은 순 좋아요 기준).
 	 *
 	 * @param int $user_id User id.
-	 * @return array{score:int,level:int}
+	 * @return float
+	 */
+	public function recalc_credibility( $user_id ) {
+		$user_id = (int) $user_id;
+
+		if ( $user_id <= 0 ) {
+			return 0.0;
+		}
+
+		$weight = $this->credibility_for_net( Reaction::net_likes_for_author( $user_id ) );
+
+		update_user_meta( $user_id, self::META_CREDIBILITY, $weight );
+
+		return $weight;
+	}
+
+	/**
+	 * §4.2.7 리뷰어의 캐시된 신용도 가중치(없으면 계산). 이 값은 그 리뷰어가 다른 리뷰에
+	 * 남기는 좋아요/싫어요의 무게(±1 ± 신용도)에 반영된다.
+	 *
+	 * @param int $user_id User id.
+	 * @return float
+	 */
+	public function credibility_weight( $user_id ) {
+		$cached = get_user_meta( (int) $user_id, self::META_CREDIBILITY, true );
+
+		if ( '' === $cached ) {
+			return $this->recalc_credibility( $user_id );
+		}
+
+		return (float) $cached;
+	}
+
+	/**
+	 * Recomputes a user's trust score from the ledger and caches it.
+	 *
+	 * 반응자별 신용도 가중치는 각자의 캐시된 값을 그 시점에 읽는다(§4.2.7). 어떤 반응자의
+	 * 신용도가 바뀌면 그가 반응했던 게시자 점수는 다음 재계산 때 반영된다(지연 정합).
+	 *
+	 * @param int $user_id User id.
+	 * @return array{score:float,level:int,credibility:float}
 	 */
 	public function recalc_user( $user_id ) {
 		$user_id = (int) $user_id;
 
 		if ( $user_id <= 0 ) {
-			return [ 'score' => 0, 'level' => 1 ];
+			return [ 'score' => 0.0, 'level' => 1, 'credibility' => 0.0 ];
 		}
 
-		$counts    = Reaction::counts_for_author( $user_id );
+		// §4.2.7 이 리뷰어 본인의 신용도 가중치를 먼저 갱신한다.
+		$credibility = $this->recalc_credibility( $user_id );
+
+		$counts    = Reaction::weighted_counts_for_author( $user_id );
 		$followers = Follow::follower_count( $user_id );
 		$penalty   = Options::report_penalty();
 
-		$score = ( $counts['like'] * 1 )
-			+ ( $counts['dislike'] * -1 )
+		// §4.2 건수(±1) + §4.2.7 반응자 신용도 가중(±0.2) 합.
+		$score = ( $counts['like'] - $counts['dislike'] )
+			+ ( $counts['like_weight'] - $counts['dislike_weight'] )
 			+ ( $counts['report'] * -1 * $penalty )
 			+ ( $followers * 1 );
 
+		$score = round( $score, 2 );
 		$level = $this->level_for_score( $score );
 
 		update_user_meta( $user_id, self::META_SCORE, $score );
@@ -68,13 +147,13 @@ final class Trust extends Component {
 		 * Fires after a user's trust score is recalculated.
 		 *
 		 * @hook brandtalk/v1/trust/recalculated
-		 * @param {int} $user_id User id.
-		 * @param {int} $score New score.
-		 * @param {int} $level New level.
+		 * @param {int}   $user_id User id.
+		 * @param {float} $score New score (소수 2자리 — §4.2.7 반응자 신용도 가중 반영).
+		 * @param {int}   $level New level.
 		 */
 		do_action( 'brandtalk/v1/trust/recalculated', $user_id, $score, $level );
 
-		return [ 'score' => $score, 'level' => $level ];
+		return [ 'score' => $score, 'level' => $level, 'credibility' => $credibility ];
 	}
 
 	/**
@@ -84,11 +163,11 @@ final class Trust extends Component {
 	 * @return int
 	 */
 	public function level_for_score( $score ) {
-		$score = (int) $score;
+		$score = (float) $score;
 
 		foreach ( Options::trust_levels() as $band ) {
-			$min = isset( $band['min'] ) ? (int) $band['min'] : 0;
-			$max = isset( $band['max'] ) ? (float) $band['max'] : PHP_INT_MAX;
+			$min = isset( $band['min'] ) ? (float) $band['min'] : 0.0;
+			$max = isset( $band['max'] ) ? (float) $band['max'] : (float) PHP_INT_MAX;
 
 			if ( $score >= $min && $score <= $max ) {
 				return (int) $band['level'];
@@ -113,7 +192,7 @@ final class Trust extends Component {
 			$score  = $recalc['score'];
 			$level  = $recalc['level'];
 		} else {
-			$score = (int) $score;
+			$score = (float) $score;
 			$level = (int) get_user_meta( $user_id, self::META_LEVEL, true );
 
 			if ( $level < 1 ) {
@@ -122,11 +201,12 @@ final class Trust extends Component {
 		}
 
 		return [
-			'user_id'   => $user_id,
-			'score'     => $score,
-			'level'     => $level,
-			'followers' => Follow::follower_count( $user_id ),
-			'following' => Follow::following_count( $user_id ),
+			'user_id'     => $user_id,
+			'score'       => $score,
+			'level'       => $level,
+			'credibility' => $this->credibility_weight( $user_id ),
+			'followers'   => Follow::follower_count( $user_id ),
+			'following'   => Follow::following_count( $user_id ),
 		];
 	}
 

@@ -46,5 +46,5 @@ delete_option( 'brandtalk_activated' );
 delete_option( 'brandtalk_installed_time' );
 
 $wpdb->query(
-	"DELETE FROM {$wpdb->usermeta} WHERE meta_key IN ('brandtalk_trust_score','brandtalk_trust_level','brandtalk_region_unlock')"
+	"DELETE FROM {$wpdb->usermeta} WHERE meta_key IN ('brandtalk_trust_score','brandtalk_trust_level','brandtalk_trust_credibility','brandtalk_region_unlock')"
 );

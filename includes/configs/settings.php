@@ -56,8 +56,26 @@ return [
 						'max'         => 1,
 						'_order'      => 20,
 					],
-					// §3.1.4
-					'ranking_limit'   => [
+						// §4.2.7 리뷰어 신용도 가중치 구간 (순 좋아요 = 좋아요 − 싫어요).
+						'credibility_net_lo' => [
+							'label'       => __( '신용도 ±0.1 기준 (순 좋아요)', 'brandtalk' ),
+							'description' => __( '리뷰어의 리뷰가 받은 (좋아요 − 싫어요) 합이 이 값 이상이면 신용도 +0.1, 음수로 이 값 이하이면 −0.1. 기본 5.', 'brandtalk' ),
+							'type'        => 'number',
+							'default'     => 5,
+							'min'         => 1,
+							'_order'      => 22,
+						],
+						// §4.2.7
+						'credibility_net_hi' => [
+							'label'       => __( '신용도 ±0.2 기준 (순 좋아요)', 'brandtalk' ),
+							'description' => __( '(좋아요 − 싫어요) 합이 이 값 이상이면 신용도 +0.2, 음수로 이 값 이하이면 −0.2. ±0.1 기준보다 커야 한다. 기본 20.', 'brandtalk' ),
+							'type'        => 'number',
+							'default'     => 20,
+							'min'         => 2,
+							'_order'      => 24,
+						],
+						// §3.1.4
+						'ranking_limit'   => [
 						'label'   => __( '랭킹 노출 상한', 'brandtalk' ),
 						'type'    => 'number',
 						'default' => 50,

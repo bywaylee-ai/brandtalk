@@ -98,12 +98,14 @@ final class Ranking extends Controller {
 
 		foreach ( (array) $rows as $row ) {
 			$rank++;
+			$score = round( (float) $row['score'], 2 );
+
 			$out[] = [
 				'rank'    => $rank,
 				'user_id' => (int) $row['user_id'],
 				'name'    => $row['name'],
-				'score'   => (int) $row['score'],
-				'level'   => $trust->level_for_score( (int) $row['score'] ),
+				'score'   => $score,
+				'level'   => $trust->level_for_score( $score ),
 			];
 		}
 

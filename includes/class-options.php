@@ -123,6 +123,27 @@ final class Options {
 	}
 
 	/**
+	 * §4.2.7 신용도 ±0.1 기준(순 좋아요). 최소 1.
+	 *
+	 * @return int
+	 */
+	public static function credibility_net_lo() {
+		return max( 1, (int) self::get( 'credibility_net_lo', 5 ) );
+	}
+
+	/**
+	 * §4.2.7 신용도 ±0.2 기준(순 좋아요). 항상 ±0.1 기준보다 크다.
+	 *
+	 * @return int
+	 */
+	public static function credibility_net_hi() {
+		$lo = self::credibility_net_lo();
+		$hi = (int) self::get( 'credibility_net_hi', 20 );
+
+		return $hi > $lo ? $hi : $lo + 1;
+	}
+
+	/**
 	 * §3.1.4 랭킹 노출 상한.
 	 *
 	 * @return int

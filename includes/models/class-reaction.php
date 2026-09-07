@@ -134,34 +134,78 @@ class Reaction extends Model {
 	}
 
 	/**
-	 * Aggregate reaction counts across all published reviews by an author.
+	 * §4.2.7 순 좋아요(좋아요 − 싫어요) — 게시자의 발행된 리뷰 전체 합.
+	 * 리뷰어 신용도 가중치 산출의 입력값.
 	 *
 	 * @param int $author_id Author user id.
-	 * @return array{like:int,dislike:int,report:int}
+	 * @return int
 	 */
-	public static function counts_for_author( $author_id ) {
+	public static function net_likes_for_author( $author_id ) {
 		global $wpdb;
 
+		return (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COALESCE( SUM( CASE r.type WHEN 'like' THEN 1 WHEN 'dislike' THEN -1 ELSE 0 END ), 0 )
+				 FROM " . self::table() . " r
+				 INNER JOIN {$wpdb->posts} p ON p.ID = r.review_id
+				 WHERE p.post_author = %d AND p.post_type = %s AND p.post_status = 'publish'",
+				$author_id,
+				'brandtalk_review'
+			)
+		);
+	}
+
+	/**
+	 * §4.2 + §4.2.7 게시자의 리뷰에 달린 반응 집계에, 반응자별 신용도 가중치 합을 더해 반환.
+	 * like/dislike 는 (건수) + (반응자 신용도 합) 으로 게시자 신뢰도에 반영된다.
+	 *
+	 * @param int $author_id Author user id.
+	 * @return array{like:int,dislike:int,report:int,like_weight:float,dislike_weight:float}
+	 */
+	public static function weighted_counts_for_author( $author_id ) {
+		global $wpdb;
+
+		// 반응자의 캐시된 신용도 가중치 (유저 메타 Trust::META_CREDIBILITY). 없으면 0.
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				'SELECT r.type AS type, COUNT(*) AS cnt
+				'SELECT r.type AS type, COUNT(*) AS cnt, COALESCE( SUM( um.meta_value + 0 ), 0 ) AS weight
 				 FROM ' . self::table() . " r
 				 INNER JOIN {$wpdb->posts} p ON p.ID = r.review_id
+				 LEFT JOIN {$wpdb->usermeta} um ON um.user_id = r.user_id AND um.meta_key = %s
 				 WHERE p.post_author = %d AND p.post_type = %s AND p.post_status = 'publish'
 				 GROUP BY r.type",
+				'brandtalk_trust_credibility',
 				$author_id,
 				'brandtalk_review'
 			),
 			ARRAY_A
 		);
 
-		$counts = [ 'like' => 0, 'dislike' => 0, 'report' => 0 ];
+		$out = [
+			'like'           => 0,
+			'dislike'        => 0,
+			'report'         => 0,
+			'like_weight'    => 0.0,
+			'dislike_weight' => 0.0,
+		];
 
 		foreach ( (array) $rows as $row ) {
-			$counts[ $row['type'] ] = (int) $row['cnt'];
+			$type = $row['type'];
+
+			if ( ! array_key_exists( $type, $out ) ) {
+				continue;
+			}
+
+			$out[ $type ] = (int) $row['cnt'];
+
+			if ( 'like' === $type ) {
+				$out['like_weight'] = (float) $row['weight'];
+			} elseif ( 'dislike' === $type ) {
+				$out['dislike_weight'] = (float) $row['weight'];
+			}
 		}
 
-		return $counts;
+		return $out;
 	}
 
 	/**

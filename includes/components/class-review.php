@@ -319,8 +319,9 @@ final class Review extends Component {
 				'id'    => $author_id,
 				'name'  => get_the_author_meta( 'display_name', $author_id ),
 				'trust' => [
-					'score' => (int) get_user_meta( $author_id, Trust::META_SCORE, true ),
-					'level' => (int) get_user_meta( $author_id, Trust::META_LEVEL, true ) ?: 1,
+					'score'       => (float) get_user_meta( $author_id, Trust::META_SCORE, true ),
+					'level'       => (int) get_user_meta( $author_id, Trust::META_LEVEL, true ) ?: 1,
+					'credibility' => (float) get_user_meta( $author_id, Trust::META_CREDIBILITY, true ),
 				],
 			],
 			'reactions'   => [
