@@ -3,7 +3,7 @@ Contributors: todaymeal
 Requires at least: 6.4
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 0.6.1
+Stable tag: 0.6.2
 License: GPLv2 or later
 
 신뢰도 기반 별점·리뷰 서비스의 데이터/REST 레이어.
@@ -93,6 +93,15 @@ HivePress 1.7.x 구조를 참고해 처음부터 재구성:
 리뷰 사진/글 필수 여부, 노티 발송 채널, REST 토큰 인증·Scope·레이트리밋.
 
 == Changelog ==
+= 0.6.2 =
+* 프론트 리뷰 섹션(좋아요/나빠요 포함)을 댓글 영역 바로 위에 노출한다.
+  - 클래식 테마: `comments_template` 훅. 블록 테마: `render_block`(`core/comments`) 훅.
+  - 댓글 영역이 있는 글에서는 `the_content` 본문 뒤 출력을 건너뛰고 댓글 바로 위로 옮긴다.
+    댓글이 닫혀 있고 댓글도 없는 글에서는 종전대로 본문 뒤에 폴백 출력.
+  - `the_content` / `comments_template` / `render_block` / `[brandtalk_reviews]` 숏코드가
+    한 요청에 한 번만 출력하도록 `Frontend::$section_done` 가드.
+  - 이전에 테마가 `the_content` 를 메인 루프 밖에서 렌더해 섹션이 안 보이던 문제 해결.
+
 = 0.6.1 =
 * 관리자 "브랜드톡 › 리뷰어" 목록 화면 신설. 리뷰 CPT 또는 브랜드톡 별점이 등록된 글을
   1건 이상 작성한 사용자별로 ID / 이메일 / 닉네임 / 리뷰 수 / 리뷰 평균 점수 / 순 좋아요 /

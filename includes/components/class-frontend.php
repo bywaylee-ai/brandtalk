@@ -34,11 +34,23 @@ final class Frontend extends Component {
 	private static $in_reviews = false;
 
 	/**
+	 * 이번 요청에서 리뷰 섹션을 이미 한 번 출력했는지. `the_content`(본문 뒤) ·
+	 * `comments_template`(댓글 영역 바로 위) · `[brandtalk_reviews]` 숏코드가
+	 * 서로 중복 출력하지 않도록 공유한다.
+	 *
+	 * @var bool
+	 */
+	private static $section_done = false;
+
+	/**
 	 * Boot hooks.
 	 */
 	protected function boot() {
 		add_filter( 'the_content', [ $this, 'append_rating' ], 20 );
 		add_filter( 'the_content', [ $this, 'append_reviews' ], 21 );
+		// 리뷰 섹션을 댓글 영역 바로 위에 출력한다 — 클래식 테마(comments_template) + 블록 테마(core/comments).
+		add_filter( 'comments_template', [ $this, 'render_reviews_before_comments' ] );
+		add_filter( 'render_block', [ $this, 'render_reviews_before_comments_block' ], 10, 2 );
 		add_filter( 'the_excerpt', [ $this, 'append_rating_excerpt' ], 20 );
 		add_shortcode( 'brandtalk_rating', [ $this, 'shortcode' ] );
 		add_shortcode( 'brandtalk_reviews', [ $this, 'reviews_shortcode' ] );
@@ -357,13 +369,15 @@ final class Frontend extends Component {
 	}
 
 	/**
-	 * 본문 뒤에 리뷰 섹션을 붙인다.
+	 * 리뷰 섹션 위치.
+	 *  - 댓글 영역이 나오는 글: 그 바로 위(comments_template / core/comments 훅).
+	 *  - 댓글이 닫혀 있고 댓글도 없는 글: 본문 뒤 폴백(여기).
 	 *
 	 * @param string $content Post content.
 	 * @return string
 	 */
 	public function append_reviews( $content ) {
-		if ( self::$in_reviews || is_admin() || is_feed() || bt\is_rest() || ! is_singular() ) {
+		if ( self::$section_done || self::$in_reviews || is_admin() || is_feed() || bt\is_rest() || ! is_singular() ) {
 			return $content;
 		}
 
@@ -375,7 +389,75 @@ final class Frontend extends Component {
 			return $content;
 		}
 
+		// 댓글 영역이 렌더될 글이면 그 바로 위에서 출력하도록 여기선 넘긴다.
+		$post_id = get_the_ID();
+
+		if ( comments_open( $post_id ) || get_comments_number( $post_id ) > 0 ) {
+			return $content;
+		}
+
 		return $content . self::render_reviews( get_post() );
+	}
+
+	/**
+	 * 클래식 테마: 테마가 comments_template() 을 부르는 시점(댓글 영역 직전)에 출력.
+	 * 필터 값(템플릿 경로)은 그대로 반환한다.
+	 *
+	 * @param string $template Comments template path.
+	 * @return string
+	 */
+	public function render_reviews_before_comments( $template ) {
+		$this->echo_reviews_for_queried();
+
+		return $template;
+	}
+
+	/**
+	 * 블록 테마: `core/comments` 블록 바로 앞에 붙인다.
+	 *
+	 * @param string $block_content 렌더된 블록 HTML.
+	 * @param array  $block         블록 정의.
+	 * @return string
+	 */
+	public function render_reviews_before_comments_block( $block_content, $block ) {
+		if ( ! in_array( bt\get_array_value( $block, 'blockName' ), [ 'core/comments', 'core/post-comments' ], true ) ) {
+			return $block_content;
+		}
+
+		$html = $this->get_reviews_for_queried();
+
+		return '' === $html ? $block_content : $html . $block_content;
+	}
+
+	/**
+	 * 현재 조회 중인 단일 글의 리뷰 섹션 HTML(조건 불충족 시 빈 문자열).
+	 * 한 요청에서 한 번만 반환한다.
+	 *
+	 * @return string
+	 */
+	private function get_reviews_for_queried() {
+		if ( self::$section_done || self::$in_reviews || is_admin() || ! is_singular() ) {
+			return '';
+		}
+
+		$post = get_queried_object();
+
+		if ( ! $post instanceof \WP_Post || ! self::is_reviewable( $post ) ) {
+			return '';
+		}
+
+		return self::render_reviews( $post );
+	}
+
+	/**
+	 * get_reviews_for_queried() 결과를 즉시 출력.
+	 */
+	private function echo_reviews_for_queried() {
+		$html = $this->get_reviews_for_queried();
+
+		if ( '' !== $html ) {
+			echo $html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- render_reviews() 가 조각별로 이스케이프.
+		}
 	}
 
 	/**
@@ -390,6 +472,9 @@ final class Frontend extends Component {
 		if ( ! $post ) {
 			return '';
 		}
+
+		// 본문·댓글 훅이 중복 출력하지 않도록(숏코드로 직접 배치한 경우 포함).
+		self::$section_done = true;
 
 		$reviews    = brandtalk()->review->reviews_for_target( $post->ID );
 		$user_id    = get_current_user_id();
