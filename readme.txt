@@ -1,9 +1,9 @@
 === BrandTalk (브랜드톡) ===
-Contributors: todaymeal
+Contributors: duigital
 Requires at least: 6.4
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 0.6.2
+Stable tag: 0.6.3
 License: GPLv2 or later
 
 신뢰도 기반 별점·리뷰 서비스의 데이터/REST 레이어.
@@ -93,6 +93,10 @@ HivePress 1.7.x 구조를 참고해 처음부터 재구성:
 리뷰 사진/글 필수 여부, 노티 발송 채널, REST 토큰 인증·Scope·레이트리밋.
 
 == Changelog ==
+= 0.6.3 =
+* 플러그인 개발자 정보 변경: Author `todaymeal` → `duigital` (duigital@gmail.com).
+  Author URI · Contributors · Plugin URI(placeholder) 갱신.
+
 = 0.6.2 =
 * 프론트 리뷰 섹션(좋아요/나빠요 포함)을 댓글 영역 바로 위에 노출한다.
   - 클래식 테마: `comments_template` 훅. 블록 테마: `render_block`(`core/comments`) 훅.

@@ -1,12 +1,13 @@
 <?php
 /**
  * Plugin Name: BrandTalk
- * Plugin URI: https://todaymeal.example/brandtalk
+ * Plugin URI: https://duigital.example/brandtalk
  * Description: 신뢰도 기반 별점·리뷰 서비스. 리뷰/반응/팔로우/인증 데이터 레이어 + REST API(brandtalk/v1).
  * Requires at least: 6.4
  * Requires PHP: 8.0
- * Version: 0.6.2
- * Author: todaymeal
+ * Version: 0.6.3
+ * Author: duigital
+ * Author URI: mailto:duigital@gmail.com
  * Text Domain: brandtalk
  * Domain Path: /languages/
  *
@@ -14,6 +15,7 @@
  * 기능·정책: 브랜드톡 기능정의서 v0.3 + 정책정의서 v0.2 (§13.1 포함) 유지.
  *
  * @package BrandTalk
+ * @author  duigital <duigital@gmail.com>
  */
 
 defined( 'ABSPATH' ) || exit;
